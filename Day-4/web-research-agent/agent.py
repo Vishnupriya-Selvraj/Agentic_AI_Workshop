@@ -2,6 +2,8 @@ import os
 from dotenv import load_dotenv
 from groq import Groq
 from tavily import TavilyClient
+import markdown
+from weasyprint import HTML
 
 # Load API keys from .env
 load_dotenv()
@@ -59,7 +61,7 @@ Include aspects such as causes, impacts, history, future trends, technologies, a
         self.report_content = report
         return report
 
-    # ✅ New Step: Save the report for reuse or versioning
+    # Save the report as a Markdown file
     def save_report(self, directory="research_reports"):
         os.makedirs(directory, exist_ok=True)
         safe_topic = self.topic.replace(" ", "_").lower()
@@ -68,26 +70,12 @@ Include aspects such as causes, impacts, history, future trends, technologies, a
             f.write(self.report_content)
         return filepath
 
+    # Export the report as a PDF
+    def export_pdf(self, directory="research_reports"):
+        os.makedirs(directory, exist_ok=True)
+        safe_topic = self.topic.replace(" ", "_").lower()
+        pdf_path = os.path.join(directory, f"{safe_topic}.pdf")
 
-# === main.py or run logic ===
-from agent import ResearchAgent
-
-def main():
-    topic = input("🔍 Enter a research topic: ")
-    agent = ResearchAgent(topic)
-
-    print("🧠 Generating research questions...")
-    agent.generate_questions()
-
-    print("🌐 Searching web for answers...")
-    agent.search_answers()
-
-    print("📝 Compiling report...")
-    report = agent.compile_report()
-
-    # ✅ Save to organized folder
-    filepath = agent.save_report()
-    print(f"\n✅ Report saved as '{filepath}'")
-
-if __name__ == "__main__":
-    main()
+        html_content = markdown.markdown(self.report_content)
+        HTML(string=html_content).write_pdf(pdf_path)
+        return pdf_path

@@ -11,12 +11,13 @@ def main():
     agent.search_answers()
 
     print("📝 Compiling report...")
-    report = agent.compile_report()
+    agent.compile_report()
 
-    with open("research_report.md", "w", encoding="utf-8") as f:
-        f.write(report)
+    filepath = agent.save_report()
+    print(f"\n✅ Markdown report saved as '{filepath}'")
 
-    print("\n✅ Report saved as 'research_report.md'")
+    pdf_path = agent.export_pdf()
+    print(f"📄 PDF version saved as '{pdf_path}'")
 
 if __name__ == "__main__":
     main()
