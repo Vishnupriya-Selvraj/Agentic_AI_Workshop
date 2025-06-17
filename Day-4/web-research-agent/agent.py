@@ -17,6 +17,7 @@ class ResearchAgent:
         self.topic = topic
         self.questions = []
         self.answers = {}
+        self.report_content = ""
 
     # Step 1: Reasoning (Planning phase)
     def generate_questions(self):
@@ -35,7 +36,8 @@ Include aspects such as causes, impacts, history, future trends, technologies, a
     # Step 2: Acting (searching the web)
     def search_answers(self):
         for question in self.questions:
-            result = tavily_client.search(query=question, include_raw_content=True)
+            trimmed_question = question[:400]  # Ensure max length for Tavily API
+            result = tavily_client.search(query=trimmed_question, include_raw_content=True)
             self.answers[question] = []
             for item in result["results"][:3]:  # Top 3 results
                 title = item["title"]
@@ -54,4 +56,38 @@ Include aspects such as causes, impacts, history, future trends, technologies, a
                 report += answer + "\n"
         
         report += "\n## Conclusion\nThis structured research summarizes the key insights collected from the web on the topic.\n"
+        self.report_content = report
         return report
+
+    # ✅ New Step: Save the report for reuse or versioning
+    def save_report(self, directory="research_reports"):
+        os.makedirs(directory, exist_ok=True)
+        safe_topic = self.topic.replace(" ", "_").lower()
+        filepath = os.path.join(directory, f"{safe_topic}.md")
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(self.report_content)
+        return filepath
+
+
+# === main.py or run logic ===
+from agent import ResearchAgent
+
+def main():
+    topic = input("🔍 Enter a research topic: ")
+    agent = ResearchAgent(topic)
+
+    print("🧠 Generating research questions...")
+    agent.generate_questions()
+
+    print("🌐 Searching web for answers...")
+    agent.search_answers()
+
+    print("📝 Compiling report...")
+    report = agent.compile_report()
+
+    # ✅ Save to organized folder
+    filepath = agent.save_report()
+    print(f"\n✅ Report saved as '{filepath}'")
+
+if __name__ == "__main__":
+    main()
