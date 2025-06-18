@@ -54,20 +54,27 @@ summary_chain = LLMChain(llm=llm, prompt=summary_prompt)
 
 quiz_prompt = PromptTemplate(
     input_variables=["summary", "num_questions"],
-    template="""Generate {num_questions} multiple-choice questions (MCQs) based on the following summary. Each question should have 4 options (a–d) and clearly indicate the correct answer.
+    template="""
+Generate {num_questions} multiple-choice questions (MCQs) based on the following summary. Each question should:
+- Start with the question.
+- Provide 4 options labeled a) to d).
+- Clearly show the correct answer as: Answer: <correct option with label>
+
+Format Example:
+What is the capital of France?
+
+a) Berlin  
+b) Madrid  
+c) Paris  
+d) Rome  
+
+Answer: c) Paris
 
 Summary:
 {summary}
 
-Format:
-Question:
-a) Option A  
-b) Option B  
-c) Option C  
-d) Option D  
-Answer: <correct option>
-
-MCQs:"""
+MCQs:
+"""
 )
 quiz_chain = LLMChain(llm=llm, prompt=quiz_prompt)
 
