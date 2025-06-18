@@ -1,115 +1,142 @@
 import streamlit as st
-import json
-import requests
 import re
+import requests
+from typing import TypedDict, Optional
+import google.generativeai as genai
 
-# ========== Constants ==========
+from langgraph.graph import StateGraph
+from langchain_core.runnables import RunnableLambda
 
-OPENROUTER_API_KEY = "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"  # Your OpenRouter Key
-SERPER_API_KEY = "7c21f9740ae2633a467bb58ad046f82b7809e952"  # <-- Replace with your real Serper.dev API Key
+# ========== API Keys ==========
+GEMINI_API_KEY = "AIzaSyDPKMNs9m7LmDijqZ_ARwML0HsPmljpCg4"  # ✅ Replace with your actual key
+SERPER_API_KEY = "7c21f9740ae2633a467bb58ad046f82b7809e952"
 
-HEADERS = {
-    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-    "Content-Type": "application/json"
-}
-MODEL = "openai/gpt-3.5-turbo"
+# ========== Gemini Setup ==========
+genai.configure(api_key=GEMINI_API_KEY)
+model = genai.GenerativeModel("gemini-1.5-flash")
 
-# ========== LLM Call Utility ==========
 
-def ask_openrouter(prompt):
-    url = "https://openrouter.ai/api/v1/chat/completions"
-    payload = {
-        "model": MODEL,
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.7
-    }
-    response = requests.post(url, headers=HEADERS, json=payload)
-    return response.json()["choices"][0]["message"]["content"]
+# ========== State Schema ==========
+class State(TypedDict):
+    article: str
+    tags: list[str]
+    parsed: Optional[dict]
+    plagiarism_score: Optional[int]
+    quality_feedback: Optional[str]
+    okr_score: Optional[int]
+    matched_tags: Optional[list[str]]
+    benchmark: Optional[str]
+    benchmark_source: Optional[str]
+    rephrased: Optional[str]
 
-# ========== Web Search (Serper.dev for Benchmarking) ==========
-
-def web_search(query):
-    url = "https://google.serper.dev/search"
-    payload = {"q": query}
-    headers = {
-        "X-API-KEY": SERPER_API_KEY,
-        "Content-Type": "application/json"
-    }
-    res = requests.post(url, headers=headers, json=payload)
-    return res.json()
-
-# ========== RAG-based Benchmark Agent ==========
-
-def retrieve_benchmark(topic):
-    results = web_search(f"{topic} blog article")
-    articles = results.get("organic", [])
-
-    if not articles:
-        return "No benchmark articles found."
-
-    best_article = articles[0]
-    title = best_article.get("title", "")
-    snippet = best_article.get("snippet", "")
-    link = best_article.get("link", "")
-
-    full_prompt = f"""
-You are an academic summarizer. Expand and rephrase the following blog snippet as a high-quality benchmark article on '{topic}'.
-Write at least 3 paragraphs covering key concepts, use cases, and takeaways. End with a source mention.
-
-Title: {title}
-Snippet: {snippet}
-URL: {link}
-"""
-
-    return ask_openrouter(full_prompt)
-
-# ========== Article Parsing Agent ==========
-
-def parse_article(text):
+# ========== Agents ==========
+def parse_article_fn(state: State) -> State:
+    text = state["article"]
     headings = re.findall(r"(?m)^(#+\s.*|.*\n[-=]{3,})", text)
     word_count = len(text.split())
     paragraph_count = len([p for p in text.split("\n\n") if p.strip()])
 
-    keyword_prompt = f"""Extract 5–10 relevant keywords from the following article:\n\n{text}"""
-    keywords = ask_openrouter(keyword_prompt)
+    prompt = f"Extract 5–10 relevant keywords from the following article:\n\n{text}"
+    response = model.generate_content(prompt)
+    keywords = response.text.strip()
 
-    return {
+    state["parsed"] = {
         "headings": headings,
         "keywords": keywords,
         "word_count": word_count,
         "paragraphs": paragraph_count
     }
+    return state
 
-# ========== Originality & Quality ==========
-
-def check_plagiarism(text):
-    prompt = f"""You are a plagiarism checker. Score the article's originality from 0–100. Respond with only the score.\n\nArticle:\n{text}"""
-    response = ask_openrouter(prompt)
+def plagiarism_check_fn(state: State) -> State:
+    text = state["article"]
+    prompt = f"You are a plagiarism checker. Score the article's originality from 0–100. Respond with only the score.\n\n{text}"
+    response = model.generate_content(prompt).text
     try:
         score = int(''.join(filter(str.isdigit, response)))
-        return max(0, min(score, 100))
     except:
-        return 50
+        score = 50
+    state["plagiarism_score"] = max(0, min(score, 100))
+    return state
 
-def assess_quality(text):
-    prompt = f"""Evaluate the article for clarity, technical depth, and logical structure. Provide a short report."""
-    return ask_openrouter(prompt)
+def assess_quality_fn(state: State) -> State:
+    prompt = "Evaluate the article for clarity, technical depth, and logical structure. Provide a short report.\n\n" + state["article"]
+    response = model.generate_content(prompt).text
+    state["quality_feedback"] = response
+    return state
 
-# ========== OKR Tag Matching ==========
-
-def match_okrs(text, tags):
+def okr_match_fn(state: State) -> State:
+    text = state["article"]
+    tags = state["tags"]
     matches = [tag for tag in tags if tag.lower() in text.lower()]
     score = int((len(matches) / len(tags)) * 100)
-    return score, matches
+    state["okr_score"] = score
+    state["matched_tags"] = matches
+    return state
 
-# ========== Rephrase Agent ==========
+def benchmark_fn(state: State) -> State:
+    title = state.get("title", "").strip()
+    parsed = state.get("parsed", {})
+    keywords = parsed.get("keywords", "").split(",") if parsed.get("keywords") else []
+    topic = title or (keywords[0] if keywords else "Design Thinking")
 
-def rephrase_text(text):
-    prompt = f"""Rephrase the following article to improve clarity, structure, and engagement:\n\n{text}"""
-    return ask_openrouter(prompt)
+    serp_url = "https://google.serper.dev/search"
+    headers = {"X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json"}
+    payload = {"q": f"{topic} blog article"}
+
+    res = requests.post(serp_url, headers=headers, json=payload).json()
+    articles = res.get("organic", [])
+    if not articles:
+        state["benchmark"] = "No benchmark articles found."
+        state["benchmark_source"] = ""
+        return state
+
+    best = articles[0]
+    blog_title = best.get("title", "")
+    snippet = best.get("snippet", "")
+    url = best.get("link", "")
+
+    prompt = f"""You are an academic summarizer. Expand and rephrase the following blog snippet as a high-quality benchmark article on '{topic}'.
+Write at least 3 paragraphs covering key concepts, use cases, and takeaways. End with a source mention.
+
+Title: {blog_title}
+Snippet: {snippet}
+URL: {url}
+"""
+    benchmark = model.generate_content(prompt).text
+    state["benchmark"] = benchmark
+    state["benchmark_source"] = url  # 🆕 Store source URL
+    return state
+
+
+def rephrase_fn(state: State) -> State:
+    text = state["article"]
+    prompt = f"Rephrase the following article to improve clarity, structure, and engagement:\n\n{text}"
+    rephrased = model.generate_content(prompt).text
+    state["rephrased"] = rephrased
+    return state
+
+# ========== Graph ==========
+def build_graph():
+    builder = StateGraph(State)
+    builder.add_node("parser", RunnableLambda(parse_article_fn))
+    builder.add_node("plagiarism", RunnableLambda(plagiarism_check_fn))
+    builder.add_node("quality", RunnableLambda(assess_quality_fn))
+    builder.add_node("okr", RunnableLambda(okr_match_fn))
+    builder.add_node("benchmark_gen", RunnableLambda(benchmark_fn))
+    builder.add_node("rephrase", RunnableLambda(rephrase_fn))
+
+    builder.set_entry_point("parser")
+    builder.add_edge("parser", "plagiarism")
+    builder.add_edge("plagiarism", "quality")
+    builder.add_edge("quality", "okr")
+    builder.add_edge("okr", "benchmark_gen")
+    builder.add_edge("benchmark_gen", "rephrase")
+    builder.set_finish_point("rephrase")
+
+    return builder.compile()
 
 # ========== Streamlit UI ==========
-
 st.set_page_config(page_title="🧠 OKR Article Quality Evaluator", layout="wide")
 st.title("🧠 OKR Article Quality Evaluator")
 st.info("Paste your article and see how it aligns with OKRs, originality, clarity, and quality.")
@@ -122,48 +149,40 @@ if st.button("🔍 Evaluate Article"):
     if not content:
         st.warning("Please include article content.")
     else:
-        with st.spinner("🔍 Parsing article..."):
-            parsed_data = parse_article(content)
+        graph = build_graph()
+        tags = ["#snsinstitutions", "#snsdesignthinkers", "#designthinking"]
+        inputs = {"article": content, "tags": tags}
 
-        with st.spinner("📚 Checking plagiarism..."):
-            plagiarism_score = check_plagiarism(content)
+        with st.spinner("🔍 Evaluating article with AI agents..."):
+            final_state = graph.invoke(inputs)
 
-        with st.spinner("🧠 Assessing clarity and depth..."):
-            quality_feedback = assess_quality(content)
-
-        okr_tags = ["#snsinstitutions", "#snsdesignthinkers", "#designthinking"]
-        with st.spinner("🔗 Validating OKR alignment..."):
-            okr_score, matched_tags = match_okrs(description, okr_tags)
-
-        with st.spinner("🌐 Fetching & summarizing benchmark..."):
-            benchmark = retrieve_benchmark(title or description or "Design Thinking")
-
-        with st.spinner("✍️ Rephrasing for improvement..."):
-            rephrased = rephrase_text(content)
-
-        final_score = int((plagiarism_score + okr_score) / 2)
-
-        # === OUTPUT ===
-        st.header("📑 Structured Parsing (Agent 1)")
-        st.write(f"**Headings:** {parsed_data['headings'] if parsed_data['headings'] else 'None found'}")
-        st.write(f"**Keywords:** {parsed_data['keywords']}")
-        st.write(f"**Word Count:** {parsed_data['word_count']}")
-        st.write(f"**Paragraph Count:** {parsed_data['paragraphs']}")
+        st.header("📁 Structured Parsing (Agent 1)")
+        parsed = final_state.get("parsed", {})
+        st.write(f"**Headings:** {parsed.get('headings', []) or 'None found'}")
+        st.write(f"**Keywords:** {parsed.get('keywords', '')}")
+        st.write(f"**Word Count:** {parsed.get('word_count', 0)}")
+        st.write(f"**Paragraph Count:** {parsed.get('paragraphs', 0)}")
 
         st.header("🧠 Originality & Clarity Evaluation (Agent 2)")
-        st.metric("Plagiarism Score", f"{plagiarism_score} / 100")
+        st.metric("Plagiarism Score", f"{final_state.get('plagiarism_score', 0)} / 100")
         st.subheader("Feedback on Quality")
-        st.info(quality_feedback)
+        st.info(final_state.get("quality_feedback", "N/A"))
 
         st.header("🎯 OKR Alignment (Agent 3)")
-        st.metric("OKR Match Score", f"{okr_score} / 100")
-        st.write(f"**Matched Tags:** {', '.join(matched_tags) if matched_tags else 'None'}")
+        st.metric("OKR Match Score", f"{final_state.get('okr_score', 0)} / 100")
+        matched = final_state.get("matched_tags", [])
+        st.write(f"**Matched Tags:** {', '.join(matched) if matched else 'None'}")
 
         st.header("🚀 Benchmark & Suggestions (Agent 4)")
         st.subheader("🌟 Example Benchmark Article")
-        st.write(benchmark)
+        st.write(final_state.get("benchmark", "N/A"))
+        source_url = final_state.get("benchmark_source", "")
+        if source_url:
+            st.markdown(f"🔗 **Source**: [View Original Article]({source_url})", unsafe_allow_html=True)  # 🆕
+
         st.subheader("🪄 Suggested Rephrasing")
-        st.write(rephrased)
+        st.write(final_state.get("rephrased", "N/A"))
 
         st.header("📊 Final Score")
-        st.metric("Overall Score", f"{final_score} / 100")
+        overall = int((final_state.get("plagiarism_score", 0) + final_state.get("okr_score", 0)) / 2)
+        st.metric("Overall Score", f"{overall} / 100")

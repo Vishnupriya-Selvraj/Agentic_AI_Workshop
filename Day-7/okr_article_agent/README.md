@@ -1,79 +1,128 @@
 # 🧠 OKR Article Quality Evaluator
 
-This Streamlit app helps evaluate written articles (especially student blogs or OKR-based content) on the following parameters:
+A lightweight, multi-agent AI system built using [Streamlit](https://streamlit.io/), [LangGraph](https://github.com/langchain-ai/langgraph), and [Google Gemini](https://ai.google.dev/) that evaluates the quality of articles with respect to:
 
-- ✅ **Plagiarism detection** (Originality score)
-- 🧠 **Clarity & quality assessment**
-- 🎯 **OKR alignment** based on tags
-- 🚀 **Benchmarking** against real-world blogs (via RAG with Serper.dev + LLM)
-- ✍️ **Rephrasing suggestions**
-
----
-
-## 🔧 Features
-
-- Uses OpenRouter (ChatGPT API) to run LLM-powered tasks
-- Uses Serper.dev (Google Search API) to fetch benchmark articles
-- RAG (Retrieval-Augmented Generation) summarizes top blog articles on your topic
-- Fully interactive with Streamlit UI
+- ✅ Structure & Keyword Extraction  
+- 🔍 Plagiarism Detection  
+- 📈 Quality Assessment  
+- 🎯 OKR Tag Matching  
+- 🚀 Benchmark Generation  
+- ✨ Rephrasing Suggestions
 
 ---
 
-## 🚀 How to Run
+## 📦 Features
 
-1. **Clone the repo** or copy the code to a local folder:
+| Feature                    | Description                                                                 |
+|---------------------------|-----------------------------------------------------------------------------|
+| 📖 Article Parsing        | Extracts headings, keywords, word count, and paragraph stats               |
+| 🔎 Plagiarism Checker     | Gives originality score (0–100) using Gemini                               |
+| 🧠 Quality Feedback       | Short summary on clarity, technical depth, and coherence                   |
+| 🎯 OKR Matching           | Scores match with predefined organizational tags                           |
+| 🏆 Benchmark Generator    | Uses Google Search (Serper.dev) to pull similar articles and generate a benchmark |
+| ✍️ Rephrasing Agent       | Suggests a clearer and more engaging version of your article               |
 
-   ```bash
-   git clone <your-repo-url>
-   cd <your-folder>
-   ```
+---
 
-## Install dependencies:
+## 🛠️ Installation
+
+### 1. Clone the Repository
 
 ```bash
+git clone https://github.com/Vishnupriya-Selvraj/Agentic_AI_Workshop/tree/main/Day-7/okr_article_agent
+cd okr-article-evaluator
+```
+
+### 2. Set up Python Environment
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows use `venv\Scripts\activate`
 pip install -r requirements.txt
 ```
-Set your API keys in the code (app.py):
 
-OPENROUTER_API_KEY: https://openrouter.ai
+### 3. Create a .env File (Optional)
 
-SERPER_API_KEY: https://serper.dev
+replace the following variables in the Python script directly:
 
-Run the app:
+```bash
+GEMINI_API_KEY = "your-google-api-key"
+SERPER_API_KEY = "your-serper-api-key"
+```
 
+## 📋 Requirements
+Here are the key packages:
+
+```bash
+streamlit
+requests
+google-generativeai
+langgraph
+langchain-core
+```
+
+## Install via:
+
+```bash
+pip install streamlit requests google-generativeai langgraph langchain-core
+```
+
+## 🚀 Usage
+Run the Streamlit app locally:
 ```bash
 streamlit run app.py
 ```
 
-## 🔑 API Keys
-OpenRouter: Get your key at https://openrouter.ai
+You’ll be able to:
 
-Serper.dev: Get a free API key at https://serper.dev
+Enter article title, description, and content
 
-## 📥 Input Example
-Field	Example
-Title	Design Thinking 101
-Description	Basics of Design Thinking with #snsinstitutions
-Content	# Introduction to Design Thinking\nDesign Thinking is...
+Click Evaluate Article
 
-## 📤 Output Example
-✅ Headings, Keywords, Word Count
+View insights across:
 
-🔍 Plagiarism Score: 100 / 100
+Structured parsing
 
-🧠 Quality Feedback: "Well-structured and informative..."
+Plagiarism score
 
-🎯 OKR Match Score: 100 / 100
+Quality feedback
 
-🚀 Benchmark: Summarized blog with source reference
+OKR tag matches
 
-✍️ Rephrased Version of the Submitted Content
+Suggested benchmark
 
-## 📦 Tech Stack
-Python
+Suggested rephrasing
 
-Streamlit
+Final aggregated score
 
-OpenRouter API (LLM)
+## 🧠 Architecture Overview
+This project uses LangGraph to sequence multiple AI tasks (nodes):
 
-Serper.dev API (Search)
+```bash
+graph TD;
+    parser --> plagiarism;
+    plagiarism --> quality;
+    quality --> okr;
+    okr --> benchmark;
+    benchmark --> rephrase;
+```
+Each node runs a RunnableLambda using Gemini or an external API (e.g., Serper.dev for Google search).
+
+## 🤖 Model Details
+
+| Component        | Model Used            | Notes                                                                 |
+|------------------|------------------------|-----------------------------------------------------------------------|
+| Plagiarism       | `gemini-1.5-flash`     | Uses custom prompt to rate originality                                |
+| Quality Feedback | `gemini-1.5-flash`     | Uses generative summary evaluation                                    |
+| OKR Matching     | Internal logic         | Uses keyword overlap scoring                                          |
+| Benchmark        | `gemini + serper.dev`  | Searches real articles, then uses Gemini to convert to academic style |
+| Rephrasing       | `gemini-1.5-flash`     | Improves clarity, structure, and flow                                 |
+
+
+## 🧪 Example Tags
+The current tag list is:
+
+```bash
+tags = ["#snsinstitutions", "#snsdesignthinkers", "#designthinking"]
+```
+
+Update this list based on your OKRs or project-specific hashtags.
