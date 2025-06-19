@@ -7,19 +7,29 @@ import google.generativeai as genai
 from langgraph.graph import StateGraph
 from langchain_core.runnables import RunnableLambda
 
+import chromadb
+chroma_client = chromadb.PersistentClient(path="./chromadb_store")
+
+from sentence_transformers import SentenceTransformer
+
 # ========== API Keys ==========
-GEMINI_API_KEY = "AIzaSyDPKMNs9m7LmDijqZ_ARwML0HsPmljpCg4"  # ✅ Replace with your actual key
+GEMINI_API_KEY = "AIzaSyDPKMNs9m7LmDijqZ_ARwML0HsPmljpCg4"
 SERPER_API_KEY = "7c21f9740ae2633a467bb58ad046f82b7809e952"
 
 # ========== Gemini Setup ==========
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel("gemini-1.5-flash")
 
+# ========== ChromaDB Setup ==========
+chroma_client = chromadb.Client()
+collection = chroma_client.get_or_create_collection("benchmarks")
+embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
 # ========== State Schema ==========
 class State(TypedDict):
     article: str
     tags: list[str]
+    description: Optional[str]
     parsed: Optional[dict]
     plagiarism_score: Optional[int]
     quality_feedback: Optional[str]
@@ -28,6 +38,37 @@ class State(TypedDict):
     benchmark: Optional[str]
     benchmark_source: Optional[str]
     rephrased: Optional[str]
+    title: Optional[str]
+
+# ========== RAG Helpers ==========
+def get_similar_benchmark(topic: str) -> Optional[dict]:
+    embedding = embedder.encode([topic]).tolist()
+    results = collection.query(query_embeddings=embedding, n_results=1)
+
+    # Safely check nested results
+    if (
+        results.get("documents") and len(results["documents"]) > 0 and len(results["documents"][0]) > 0 and
+        results.get("metadatas") and len(results["metadatas"]) > 0 and len(results["metadatas"][0]) > 0
+    ):
+        metadata = results["metadatas"][0][0]
+        document = results["documents"][0][0]
+
+        if metadata.get("topic", "").lower() in topic.lower():
+            return {
+                "benchmark": document,
+                "source": metadata.get("source", "")
+            }
+
+    return None
+
+def save_benchmark_to_db(topic: str, content: str, source: str):
+    embedding = embedder.encode([topic]).tolist()
+    collection.add(
+        documents=[content],
+        embeddings=embedding,
+        metadatas=[{"topic": topic, "source": source}],
+        ids=[topic.replace(" ", "_").lower()]
+    )
 
 # ========== Agents ==========
 def parse_article_fn(state: State) -> State:
@@ -66,19 +107,26 @@ def assess_quality_fn(state: State) -> State:
     return state
 
 def okr_match_fn(state: State) -> State:
-    text = state["article"]
+    description = state.get("description", "") 
     tags = state["tags"]
-    matches = [tag for tag in tags if tag.lower() in text.lower()]
+    matches = [tag for tag in tags if tag.lower() in description.lower()]
     score = int((len(matches) / len(tags)) * 100)
     state["okr_score"] = score
     state["matched_tags"] = matches
     return state
+
 
 def benchmark_fn(state: State) -> State:
     title = state.get("title", "").strip()
     parsed = state.get("parsed", {})
     keywords = parsed.get("keywords", "").split(",") if parsed.get("keywords") else []
     topic = title or (keywords[0] if keywords else "Design Thinking")
+
+    cached = get_similar_benchmark(topic)
+    if cached:
+        state["benchmark"] = cached["benchmark"]
+        state["benchmark_source"] = cached["source"]
+        return state
 
     serp_url = "https://google.serper.dev/search"
     headers = {"X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json"}
@@ -103,11 +151,13 @@ Title: {blog_title}
 Snippet: {snippet}
 URL: {url}
 """
-    benchmark = model.generate_content(prompt).text
-    state["benchmark"] = benchmark
-    state["benchmark_source"] = url  # 🆕 Store source URL
-    return state
+    benchmark = model.generate_content(prompt).text.strip()
 
+    save_benchmark_to_db(topic, benchmark, url)
+
+    state["benchmark"] = benchmark
+    state["benchmark_source"] = url
+    return state
 
 def rephrase_fn(state: State) -> State:
     text = state["article"]
@@ -151,7 +201,7 @@ if st.button("🔍 Evaluate Article"):
     else:
         graph = build_graph()
         tags = ["#snsinstitutions", "#snsdesignthinkers", "#designthinking"]
-        inputs = {"article": content, "tags": tags}
+        inputs = {"article": content, "tags": tags, "title": title, "description": description}
 
         with st.spinner("🔍 Evaluating article with AI agents..."):
             final_state = graph.invoke(inputs)
@@ -178,7 +228,7 @@ if st.button("🔍 Evaluate Article"):
         st.write(final_state.get("benchmark", "N/A"))
         source_url = final_state.get("benchmark_source", "")
         if source_url:
-            st.markdown(f"🔗 **Source**: [View Original Article]({source_url})", unsafe_allow_html=True)  # 🆕
+            st.markdown(f"🔗 **Source**: [View Original Article]({source_url})", unsafe_allow_html=True)
 
         st.subheader("🪄 Suggested Rephrasing")
         st.write(final_state.get("rephrased", "N/A"))
