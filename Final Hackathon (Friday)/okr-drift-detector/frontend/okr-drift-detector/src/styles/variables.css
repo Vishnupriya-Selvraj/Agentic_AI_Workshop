@@ -1,0 +1,21 @@
+/* src/styles/variables.css */
+:root {
+  --primary-color: #3B82F6;
+  --secondary-color: #8B5CF6;
+  --success-color: #10B981;
+  --warning-color: #F59E0B;
+  --danger-color: #EF4444;
+  
+  --clt-color: #3B82F6;
+  --cfc-color: #10B981;
+  --scd-color: #F59E0B;
+  --iipc-color: #8B5CF6;
+  --sri-color: #EF4444;
+  
+  --bg-gradient-start: #EEF2FF;
+  --bg-gradient-end: #F5F3FF;
+  --card-bg: #FFFFFF;
+  --text-primary: #111827;
+  --text-secondary: #6B7280;
+  --border-color: #E5E7EB;
+}
