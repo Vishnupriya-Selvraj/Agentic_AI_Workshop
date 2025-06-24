@@ -24,11 +24,11 @@ class TrajectoryMapperAgent:
         OKR History: {json.dumps(okr_data, indent=2)}
         
         Consider the 5 OKR Pillars:
-        - CLT: Continuous Learning & Training (PrepInsta courses, GenAI, Product Management)
-        - CFC: Create, Fund & Commercialize (Hackathons, BMC videos, GenAI projects)
-        - SCD: Skill & Competency Development (LeetCode, Mock exams, Competitive programming)
-        - IIPC: Industry Integration & Professional Connect (LinkedIn networking, Article writing)
-        - SRI: Social Responsibility & Impact (Community engagement, Design thinking activities)
+        - CLT: Center For Learning and Teaching (PrepInsta courses, GenAI, Product Management)
+        - CFC: Center for Creativity (Hackathons, BMC videos, GenAI projects)
+        - SCD: Skill & Career Development (LeetCode, Mock exams, Competitive programming)
+        - IIPC: Industry Institute Patnership Cell (LinkedIn networking, Article writing)
+        - SRI: Social Responsibility Initiative (Community engagement, Design thinking activities)
         
         Analyze:
         1. Primary focus areas and their evolution

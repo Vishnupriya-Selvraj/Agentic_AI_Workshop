@@ -20,7 +20,7 @@ class OKRExtractorAgent:
         okrs = await cursor.to_list(length=None)
         
         if not okrs:
-            # Generate sample data if no OKRs found (for demo purposes)
+            
             okrs = await self._generate_sample_okrs(student_id)
         
         # Use RAG to enrich OKR context

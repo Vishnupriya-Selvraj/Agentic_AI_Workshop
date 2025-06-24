@@ -24,10 +24,9 @@ from models.okr_model import DriftReport, drift_reports_collection, okr_collecti
 app = FastAPI(title="OKR Goal-Drift Detection System")
 
 # CORS middleware
-# Update CORS middleware in main.py
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Add your frontend port
+    allow_origins=["http://localhost:5173", "http://localhost:3000"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

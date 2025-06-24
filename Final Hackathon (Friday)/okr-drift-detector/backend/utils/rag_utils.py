@@ -16,7 +16,7 @@ class GeminiRAGUtils:
             path=os.getenv("CHROMA_PERSIST_DIRECTORY")
         )
         
-        # Use Gemini embeddings if available, fallback to default
+        # Use Gemini embeddings 
         try:
             self.embedding_function = embedding_functions.GoogleGenerativeAiEmbeddingFunction(
                 api_key=os.getenv("GEMINI_API_KEY")
@@ -35,8 +35,8 @@ class GeminiRAGUtils:
                 embedding_function=self.embedding_function
             )
     
-    async def scrape_and_store_pillar_data(self):
-        """Scrape web data for each pillar and store in ChromaDB"""
+    async def fetch_and_store_pillar_data(self):
+        """fetch web data for each pillar and store in ChromaDB"""
         
         # CLT Pillar - Learning resources
         clt_data = [
@@ -55,7 +55,7 @@ class GeminiRAGUtils:
         ]
         
         # CFC Pillar - Hackathons and startup data
-        cfc_data = await self.scrape_yc_companies()
+        cfc_data = await self.fetch_yc_companies()
         cfc_data.extend([
             {
                 "content": "DevPost hackathons for team-based development projects with 3-5 members focusing on real-world problems",
@@ -132,8 +132,8 @@ class GeminiRAGUtils:
                     ids=ids
                 )
     
-    async def scrape_yc_companies(self) -> List[Dict]:
-        """Scrape Y Combinator companies for CFC pillar"""
+    async def fetch_yc_companies(self) -> List[Dict]:
+        """fetch Y Combinator companies for CFC pillar"""
         companies_data = [
             {
                 "content": "OpenAI - AI research and deployment company focusing on safe artificial general intelligence",
