@@ -3,38 +3,107 @@ import chromadb
 from chromadb.utils import embedding_functions
 import os
 from typing import List, Dict, Any
-import requests
-from bs4 import BeautifulSoup
+from dotenv import load_dotenv
+from typing import Optional
 
 class GeminiRAGUtils:
     def __init__(self):
-        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+        load_dotenv()
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY environment variable not set")
+        
+        genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel('gemini-1.5-flash')
         
-        # Initialize ChromaDB
-        self.chroma_client = chromadb.PersistentClient(
-            path=os.getenv("CHROMA_PERSIST_DIRECTORY")
-        )
+        # Initialize ChromaDB with auto-recovery
+        self.chroma_path = os.getenv("CHROMA_PERSIST_DIRECTORY", "./chroma_db")
+        self._initialize_chroma_client()
         
-        # Use Gemini embeddings 
+        os.environ["CHROMA_GOOGLE_GENAI_API_KEY"] = api_key
         try:
-            self.embedding_function = embedding_functions.GoogleGenerativeAiEmbeddingFunction(
-                api_key=os.getenv("GEMINI_API_KEY")
-            )
-        except:
+            self.embedding_function = embedding_functions.GoogleGenerativeAiEmbeddingFunction()
+        except Exception as e:
+            print(f"⚠️ Using default embeddings - {str(e)}")
             self.embedding_function = embedding_functions.DefaultEmbeddingFunction()
         
         self.setup_collections()
-    
+
+    def _initialize_chroma_client(self, retries=3):
+        """Initialize Chroma client with auto-recovery"""
+        for attempt in range(retries):
+            try:
+                if not os.path.exists(self.chroma_path):
+                    os.makedirs(self.chroma_path)
+                
+                self.chroma_client = chromadb.PersistentClient(path=self.chroma_path)
+                # Test connection
+                self.chroma_client.heartbeat()
+                return
+            except Exception as e:
+                print(f"⚠️ ChromaDB init attempt {attempt+1} failed: {str(e)}")
+                if attempt == retries - 1:
+                    raise RuntimeError(f"Failed to initialize ChromaDB after {retries} attempts")
+                
+                # Clean up and retry
+                import shutil
+                if os.path.exists(self.chroma_path):
+                    shutil.rmtree(self.chroma_path)
+                os.makedirs(self.chroma_path)
+                time.sleep(1)
+        
+        # Configure embeddings
+        os.environ["CHROMA_GOOGLE_GENAI_API_KEY"] = api_key
+        try:
+            self.embedding_function = embedding_functions.GoogleGenerativeAiEmbeddingFunction()
+        except Exception as e:
+            print(f"⚠️ Using default embeddings - {str(e)}")
+            self.embedding_function = embedding_functions.DefaultEmbeddingFunction()
+        
+        self.setup_collections()
+
+    def _reinitialize_chroma(self, path: str):
+        """Handle ChromaDB initialization errors by recreating the directory"""
+        import shutil
+        try:
+            # Remove the problematic directory
+            if os.path.exists(path):
+                shutil.rmtree(path)
+            # Create new client
+            self.chroma_client = chromadb.PersistentClient(path=path)
+            print("✅ Successfully reinitialized ChromaDB storage")
+        except Exception as e:
+            print(f"❌ Failed to reinitialize ChromaDB: {str(e)}")
+            raise RuntimeError("Failed to initialize ChromaDB storage")
+
     def setup_collections(self):
-        """Initialize ChromaDB collections for 5 pillars"""
+        """Initialize collections with auto-recovery"""
         self.collections = {}
+        self._collections_to_populate = []
         for pillar in ["CLT", "CFC", "SCD", "IIPC", "SRI"]:
-            self.collections[pillar] = self.chroma_client.get_or_create_collection(
-                name=f"okr_{pillar.lower()}",
-                embedding_function=self.embedding_function
-            )
-    
+            collection_name = f"okr_{pillar.lower()}"
+            try:
+                # Try existing collection first
+                self.collections[pillar] = self.chroma_client.get_collection(collection_name)
+            except Exception as e:
+                print(f"⚠️ Collection {collection_name} not found, creating new: {str(e)}")
+                try:
+                    self.collections[pillar] = self.chroma_client.get_or_create_collection(
+                        name=collection_name,
+                        embedding_function=self.embedding_function
+                    )
+                    # Mark for population if empty
+                    if self.collections[pillar].count() == 0:
+                        self._collections_to_populate.append(pillar)
+                except Exception as e:
+                    print(f"❌ Failed to create collection {collection_name}: {str(e)}")
+                    raise
+
+    async def populate_collections_if_needed(self):
+        """Populate collections that are empty after setup_collections"""
+        if hasattr(self, '_collections_to_populate') and self._collections_to_populate:
+            await self.fetch_and_store_pillar_data()
+
     async def fetch_and_store_pillar_data(self):
         """fetch web data for each pillar and store in ChromaDB"""
         
@@ -172,16 +241,26 @@ class GeminiRAGUtils:
             for doc, meta in zip(results['documents'][0], results['metadatas'][0])
         ]
     
-    async def generate_with_context(self, prompt: str, context: List[Dict] = None) -> str:
+    async def generate_with_context(self, prompt: str, context: List[Dict] = None) -> Optional[str]:
         """Generate response using Gemini with RAG context"""
-        if context:
-            context_text = "\n".join([
-                f"Context: {item['content']}\nMetadata: {item['metadata']}"
-                for item in context
-            ])
-            full_prompt = f"Context Information:\n{context_text}\n\nQuery: {prompt}"
-        else:
-            full_prompt = prompt
+        try:
+            if context:
+                context_text = "\n".join([
+                    f"Context: {item['content']}\nMetadata: {item['metadata']}"
+                    for item in context
+                ])
+                full_prompt = f"Context Information:\n{context_text}\n\nQuery: {prompt}"
+            else:
+                full_prompt = prompt
+            
+            response = await self.model.generate_content_async(full_prompt)
+            
+            if not response or not response.text:
+                print("Gemini returned empty response")
+                return "No response generated"
+                
+            return response.text
+        except Exception as e:
+            print(f"Error generating content: {str(e)}")
+            return f"Error generating response: {str(e)}"
         
-        response = await self.model.generate_content_async(full_prompt)
-        return response.text

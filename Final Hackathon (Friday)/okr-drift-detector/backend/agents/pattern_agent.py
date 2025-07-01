@@ -6,20 +6,28 @@ class PatternClassifierAgent:
     def __init__(self):
         self.rag_utils = GeminiRAGUtils()
     
-    async def classify_patterns(self, drift_report: Dict[str, Any], trajectory: str) -> str:
+    async def classify_patterns(self, drift_report: Dict[str, Any], trajectory: str, quarterly_goal: str)  -> str:
         """Classify behavioral patterns in OKR changes"""
         
         # Get context for pattern recognition
         context = self.rag_utils.query_pillar_knowledge(
-            "CLT", "learning behavior patterns student development", k=3
-        )
+            "CLT", f"learning behavior patterns for {quarterly_goal}", k=3
+         )
         
         prompt = f"""
-        Classify the student's OKR behavioral pattern based on their drift analysis and trajectory.
-        
-        Drift Report: {json.dumps(drift_report, indent=2)}
-        Trajectory: {trajectory}
-        
+         Analyze the student's behavioral pattern in relation to their quarterly goal: {quarterly_goal}
+         
+         Drift Report: {json.dumps(drift_report, indent=2)}
+         Trajectory: {trajectory}
+         
+         Focus your analysis on:
+         1. How well their activities align with {quarterly_goal}
+         2. Whether their progress shows coherent development toward {quarterly_goal}
+         3. Any deviations that might hinder achieving {quarterly_goal}
+         
+         Provide pattern classification specifically in context of {quarterly_goal}
+         
+      Use the following behavioral patterns as a reference:  
         Common OKR Behavioral Patterns:
         
         1. **Shiny Object Syndrome** - Frequent switches to trending topics without completion
