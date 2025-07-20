@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+*.log
+
+# Virtual environment
+vary/
+venv/
+
+# Environment variables
+.env
+
+# Data/Reports (if not meant for version control)
+research_reports/
+analysis_results/
+chromadb_store/
+*.sqlite3 
