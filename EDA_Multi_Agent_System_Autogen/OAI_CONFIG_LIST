@@ -1,10 +1,8 @@
 [
     {
         "model": "gemini-1.5-flash-latest",
-        "api_key": "AIzaSyDgFi7zobkSOJS_N4Ih9ICNjAWbGDeE3jU"
-    },
-    {
-        "model": "gpt-4",
-        "api_key": "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"
+        "api_key": "AIzaSyDLD37IYAoH5hdm9dOBWdoUH9ZSaNvdIV0",
+        "base_url": "https://generativelanguage.googleapis.com/v1beta/models/",
+        "api_type": "google"
     }
 ] 
