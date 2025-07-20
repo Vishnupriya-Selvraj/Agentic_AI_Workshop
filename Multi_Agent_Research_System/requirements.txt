@@ -1,0 +1,10 @@
+langgraph
+langchain
+langchain-community
+beautifulsoup4
+faiss-cpu
+numpy
+tavily-python
+python-dotenv
+pydantic
+langchain-google-genai 
