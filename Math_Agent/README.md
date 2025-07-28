@@ -1,102 +1,247 @@
-# LangGraph Math Agent
+# 🧮 LangGraph Math Agent
 
-This project implements an AI agent using LangGraph that can answer general questions using a Large Language Model (LLM) and perform mathematical operations (addition, subtraction, multiplication, and division) by calling predefined functions.
+A LangGraph-based agent that seamlessly handles both mathematical operations and general questions using an LLM. This agent demonstrates the power of LangGraph in creating intelligent systems that can route between different types of processing based on the nature of the input.
 
-## Problem Statement
+## Assignment Requirements Met
 
-Create an agent using LangGraph that answers general questions using the LLM, and when asked to perform mathematical operations (addition, subtraction, multiplication, and division), it calls four predefined functions (plus, divide, sub, mul) for answering. The agent should handle both general and math-related queries seamlessly.
+✅ **LLM Integration**: Uses LLM API for general reasoning  
+✅ **Custom Functions**: Four predefined mathematical functions implemented  
+✅ **Mathematical Query Detection**: Automatically detects and routes math queries  
+✅ **General Query Handling**: Forwards non-math queries to LLM  
+✅ **LangGraph Implementation**: Complete graph-building process with tool integration  
+✅ **Conditional Routing**: Appropriate graph flow using conditional edges  
+✅ **Testing**: Comprehensive testing with both math and general queries
 
-## Requirements
+## Features
 
-1.  **LLM Integration**: Uses the Groq API (or a similar LLM API) for general reasoning.
-2.  **Custom Mathematical Functions**: Four Python functions (`plus`, `subtract`, `multiply`, `divide`) are defined to handle arithmetic operations.
-3.  **Conditional Routing**: The agent detects mathematical queries and routes them to the appropriate custom function; otherwise, it forwards the query to the LLM for a general response.
-4.  **LangGraph for Flow Control**: The entire logic, including tool integration and conditional transitions, is orchestrated using LangGraph.
+- **Mathematical Operations**: Addition, subtraction, multiplication, and division
+- **Natural Language Processing**: Understands queries in plain English
+- **Intelligent Routing**: Automatically routes between math tools and LLM
+- **Error Handling**: Robust error handling for division by zero and invalid inputs
+- **Multiple Interfaces**: Command line, interactive, and web interfaces
+- **Groq LLM Integration**: Uses Groq's fast LLM for general questions
+- **LangGraph Integration**: Uses LangGraph for workflow management
+- **Tool-based Architecture**: Implements mathematical operations as tools
+- **Conditional Routing**: Intelligently routes between LLM and mathematical tools
 
-## Architecture and Flow
+## Supported Operations
 
-The agent's workflow is managed by a LangGraph `StateGraph` with the following key components:
+- **Addition**: "What is 5 plus 3?", "15 + 8"
+- **Subtraction**: "Subtract 10 from 7", "Calculate 20 - 5"
+- **Multiplication**: "Multiply 6 by 9", "What is 4 \* 7?"
+- **Division**: "Divide 100 by 4", "Divide 50 by 2"
 
-*   **AgentState**: A `TypedDict` that maintains the conversation history as a list of `BaseMessage` objects.
-*   **Nodes**:
-    *   `call_model`: This node is responsible for invoking the LLM. It takes the current `AgentState` (messages) as input, calls the `llm_with_tools` (LLM bound with the mathematical tools), and updates the state with the LLM's response. The LLM is configured to use the `llama3-8b-8192` model.
-    *   `call_tool`: This node executes the detected mathematical tool. If the LLM's response indicates a tool call, this node extracts the tool name and arguments, then calls the corresponding Python function (`plus`, `subtract`, `multiply`, `divide`). It updates the state with the tool's output.
-*   **Conditional Edge (`tool_router`)**:
-    *   The `tool_router` function acts as the decision-maker for the graph. After the `call_model` node processes a message, the `tool_router` examines the last message in the `AgentState`.
-    *   If the LLM's response contains `tool_calls` (indicating a mathematical operation), the router directs the flow to the `call_tool` node.
-    *   If there are no `tool_calls`, the query is considered general, and the flow ends (`__end__`), meaning the LLM's general response is the final answer.
-*   **Edges**:
-    *   **Entry Point**: The graph always starts at the `call_model` node (`workflow.set_entry_point("call_model")`).
-    *   **Model to Tool/End**: From `call_model`, a conditional edge (`add_conditional_edges`) uses `tool_router` to transition to either `call_tool` (if a tool is called) or `END` (if the LLM provides a direct answer).
-    *   **Tool to Model**: After a tool is executed by `call_tool`, the flow returns to `call_model` (`workflow.add_edge("call_tool", "call_model")`). This allows the LLM to summarize the tool's output or continue the conversation if further steps are needed.
+## 🚀 Quick Start
 
-## Setup and Installation
+### 1. Setup Groq LLM (Recommended)
 
-1.  **Clone the repository**:
+```bash
+cd Math_Agent
+python setup_groq.py
+```
 
-    ```bash
-    git clone <repository_url>
-    cd Day-10/Math_Agent
-    ```
+This will:
 
-2.  **Create a virtual environment** (recommended):
+- Guide you through setting up your Groq API key
+- Install required dependencies
+- Test the connection
 
-    ```bash
-    python -m venv venv
-    ```
+### 2. Manual Setup
 
-3.  **Activate the virtual environment**:
+If you prefer manual setup:
 
-    *   On Windows:
+```bash
+cd Math_Agent
+pip install -r requirements.txt
+```
 
-        ```bash
-        .\venv\Scripts\activate
-        ```
+Create a `.env` file:
 
-    *   On macOS/Linux:
+```env
+GROQ_API_KEY=your_groq_api_key_here
+```
 
-        ```bash
-        source venv/bin/activate
-        ```
+Get your Groq API key from: https://console.groq.com/
 
-4.  **Install dependencies**:
+## 📱 Usage Options
 
-    ```bash
-    pip install -r requirements.txt
-    ```
+### Interactive Command Line Interface
 
-5.  **Set up Groq API Key**:
+```bash
+python interactive_agent.py
+```
 
-    Create a `.env` file in the `Day-10/Math_Agent` directory and add your Groq API key:
+### Web Interface
 
-    ```
-    GROQ_API_KEY="your_groq_api_key_here"
-    ```
+```bash
+python web_agent.py
+```
 
-    You can obtain a Groq API key from [Groq Console](https://console.groq.com/).
+Then open: http://localhost:5000
 
-## How to Run
-
-Execute the `agent.py` script:
+### Script Mode (Testing)
 
 ```bash
 python agent.py
 ```
 
-The script will run a series of predefined test queries, demonstrating both mathematical and general question-answering capabilities.
+## Architecture
 
-## Code Explanation
+### Components
 
-### `agent.py`
+1. **Mathematical Tools**: Four basic arithmetic operations implemented as tools
+2. **Math Parser**: Extracts numbers and operations from natural language
+3. **LangGraph Workflow**: Manages the conversation flow and tool execution
+4. **State Management**: Tracks conversation state and message history
+5. **Conditional Router**: Determines whether to use tools or LLM
 
-*   **Imports**: Essential modules from `os`, `dotenv`, `langchain_groq`, `langchain_core.pydantic_v1`, `langchain_core.tools`, `langchain_core.runnables`, `langgraph.graph`, `typing`, and `operator` are imported.
-*   **Environment Variables**: `load_dotenv()` loads the API key from the `.env` file.
-*   **LLM Initialization**: `ChatGroq` is initialized with `model="llama3-8b-8192"` and `temperature=0` for consistent responses.
-*   **Mathematical Tools**: `plus`, `subtract`, `multiply`, `divide` are defined using the `@tool` decorator. They include type hints for `a` and `b` as `Union[int, float]` and return `Union[int, float]`. The `divide` function includes error handling for division by zero.
-*   **Tool Binding**: The mathematical tools are bound to the `llm` instance using `llm.bind_tools(tools)`, making them available for the LLM to invoke based on user queries.
-*   **AgentState**: Defines the structure of the state that passes through the graph, primarily a list of `BaseMessage` objects.
-*   **`call_tool(state)` Function**: This node extracts `tool_calls` from the last message in the state, identifies the tool name and arguments, and invokes the corresponding Python function. The result is then added back to the state as an `AIMessage`.
-*   **`call_model(state)` Function**: This node takes the current conversation `messages` from the state, invokes the `llm_with_tools`, and appends the LLM's response to the messages in the state.
-*   **`tool_router(state)` Function**: This crucial function determines the next step in the graph. If the `last_message.tool_calls` list is not empty, it means the LLM has decided to use a tool, and the function returns `"call_tool"`. Otherwise, it returns `"__end__"` (or `"call_model"` if the LLM should continue processing the message directly).
-*   **Graph Definition**: The `StateGraph` is built by adding nodes and defining the entry point and conditional edges. The `add_conditional_edges` method is used with `tool_router` to dynamically transition between nodes based on the LLM's intent.
-*   **Execution**: The `if __name__ == "__main__":` block contains example queries for both mathematical operations and general questions, demonstrating the agent's capabilities. 
+### Workflow
+
+1. **Input Processing**: User provides a query
+2. **Routing Decision**: Agent determines if it's a mathematical or general query
+3. **Tool Execution**: For math queries, appropriate mathematical tool is selected and executed
+4. **LLM Processing**: For general queries, Groq LLM provides response
+5. **Response**: Result is returned to the user
+
+## Installation
+
+```bash
+git clone <repository-url>
+cd Math_Agent
+pip install -r requirements.txt
+```
+
+## Code Structure
+
+```
+Math_Agent/
+├── agent.py              # Main agent implementation
+├── interactive_agent.py  # Interactive command line interface
+├── web_agent.py         # Web interface with Flask
+├── setup_groq.py        # Groq setup script
+├── requirements.txt      # Python dependencies
+├── README.md            # This file
+├── REPORT.md            # Detailed implementation report
+└── USAGE_GUIDE.md      # Comprehensive usage guide
+```
+
+## Example Output
+
+```
+🧮 LangGraph Math Agent
+===========================================================
+
+📊 Testing mathematical queries:
+
+❓ User: What is 5 plus 3?
+🤖 Agent: The result is: 8.0
+
+❓ User: Multiply 6 by 9.
+🤖 Agent: The result is: 54.0
+
+📝 Testing general queries:
+
+❓ User: What is the capital of France?
+🤖 Agent: The capital of France is Paris.
+
+❓ User: Tell me about large language models.
+🤖 Agent: Large Language Models (LLMs) are AI systems trained on vast amounts of text data...
+```
+
+## LLM Integration
+
+The agent uses **Groq LLM** for general questions, providing:
+
+- **Fast Responses**: Groq's optimized inference
+- **High Quality**: Advanced language model capabilities
+- **Reliable**: Robust API with good uptime
+- **Cost Effective**: Competitive pricing for API calls
+
+### Alternative LLM Options
+
+You can easily switch to other LLM providers by modifying the agent files:
+
+#### OpenAI:
+
+```python
+from langchain_openai import ChatOpenAI
+llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
+```
+
+#### Gemini:
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+llm = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0)
+```
+
+## Custom Mathematical Functions
+
+The agent implements four custom mathematical functions as LangChain tools:
+
+```python
+@tool
+def plus(a: Union[int, float], b: Union[int, float]) -> Union[int, float]:
+    """Add two numbers."""
+    return operator.add(a, b)
+
+@tool
+def subtract(a: Union[int, float], b: Union[int, float]) -> Union[int, float]:
+    """Subtract two numbers."""
+    return operator.sub(a, b)
+
+@tool
+def multiply(a: Union[int, float], b: Union[int, float]) -> Union[int, float]:
+    """Multiply two numbers."""
+    return operator.mul(a, b)
+
+@tool
+def divide(a: Union[int, float], b: Union[int, float]) -> Union[int, float]:
+    """Divide two numbers, with error handling for division by zero."""
+    if b == 0:
+        raise ValueError("Division by zero is not allowed.")
+    return operator.truediv(a, b)
+```
+
+## LangGraph Implementation
+
+The agent uses LangGraph's `StateGraph` to manage the conversation flow:
+
+- **State Management**: Maintains conversation history
+- **Graph Nodes**: `call_model` for LLM processing, `call_tool` for mathematical operations
+- **Conditional Routing**: `tool_router` determines the appropriate path
+- **Tool Integration**: Mathematical functions integrated as LangChain tools
+
+## Future Enhancements
+
+- Support for more complex mathematical operations (exponents, roots, etc.)
+- Integration with external APIs for real-time data
+- Enhanced natural language processing for better query understanding
+- Multi-language support
+- Voice interface integration
+- Advanced error handling and validation
+- Performance optimization for large-scale deployments
+
+## Contributing
+
+Feel free to contribute by:
+
+- Adding new mathematical operations
+- Improving the natural language parser
+- Enhancing the web interface
+- Adding new LLM integrations
+- Optimizing performance
+- Adding tests and documentation
+
+## License
+
+This project is open source and available under the MIT License.
+
+## Support
+
+For issues and questions:
+
+- Check the `USAGE_GUIDE.md` for detailed instructions
+- Review the `REPORT.md` for technical implementation details
+- Ensure your Groq API key is properly configured
+- Verify all dependencies are installed correctly
